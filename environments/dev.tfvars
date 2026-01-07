@@ -43,9 +43,9 @@ alb_group_name    = "multi-env-alb"
 health_check_path = "/health/ready"
 
 # Multi-URL Configuration
-# Public URL that users access in browser (via Cloudflare proxy)
-kc_hostname_url       = "https://auth.dev.intelfoundry.io"
-kc_hostname_admin_url = "https://auth.dev.intelfoundry.io"
+# URL that users access in browser (same as domain_name for internal deployment)
+kc_hostname_url       = "https://auth.dev.cloud.onceamerican.com"
+kc_hostname_admin_url = "https://auth.dev.cloud.onceamerican.com"
 # Enable dynamic backchannel for internal service-to-service communication
 kc_hostname_backchannel_dynamic = true
 
