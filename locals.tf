@@ -23,7 +23,23 @@ locals {
   # Database URL
   db_url = "jdbc:postgresql://${local.db_host}:${var.db_port}/${var.db_name}"
 
-  # Environment variables for container
+  # Read .env template file and prepare for substitution
+  env_template = file("${path.module}/.env.tmpl")
+  
+  # .env file content with actual values (passwords will be injected at runtime)
+  env_file_content = templatefile("${path.module}/.env.tmpl", {
+    env                    = var.environment
+    keycloak_admin         = var.keycloak_admin_username
+    keycloak_admin_password = "<from-secret>"  # Will be replaced by init container
+    keycloak_port          = var.container_port
+    postgres_host          = local.db_host
+    postgres_port          = var.db_port
+    postgres_db            = var.db_name
+    postgres_user          = var.db_username
+    postgres_password      = "<from-secret>"  # Will be replaced by init container
+  })
+
+  # Environment variables for container (Keycloak standard env vars)
   container_env_vars = merge(
     {
       KC_DB                = "postgres"

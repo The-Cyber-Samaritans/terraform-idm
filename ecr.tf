@@ -1,5 +1,4 @@
-# ECR Repository for Keycloak Container Image
-
+# ECR Repository for Keycloak/IDM Docker images
 resource "aws_ecr_repository" "keycloak" {
   count = var.create_ecr_repository ? 1 : 0
 
@@ -14,31 +13,12 @@ resource "aws_ecr_repository" "keycloak" {
     encryption_type = "AES256"
   }
 
-  tags = local.common_tags
-}
-
-# ECR Lifecycle Policy - Keep last 10 images
-resource "aws_ecr_lifecycle_policy" "keycloak" {
-  count = var.create_ecr_repository ? 1 : 0
-
-  repository = aws_ecr_repository.keycloak[0].name
-
-  policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Keep last 10 images"
-        selection = {
-          tagStatus     = "any"
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = {
-          type = "expire"
-        }
-      }
-    ]
-  })
+  tags = merge(
+    local.common_tags,
+    {
+      Name = local.ecr_repository_name
+    }
+  )
 }
 
 # ECR Repository Policy - Allow EKS nodes to pull images

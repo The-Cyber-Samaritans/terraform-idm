@@ -80,12 +80,9 @@ fi
 # Initialize Terraform
 echo ""
 echo "Initializing Terraform..."
+# Backend key format: us-east-1/{vpc_name}/{env_name}/idm-service/terraform.tfstate
 terraform init \
-    -backend-config="bucket=intelfoundry-terraform-state-us-east-1" \
-    -backend-config="key=us-east-1/intelfoundry-idm/${ENVIRONMENT}/terraform.tfstate" \
-    -backend-config="region=${AWS_DEFAULT_REGION}" \
-    -backend-config="encrypt=true" \
-    -backend-config="dynamodb_table=terraform-state-lock" \
+    -backend-config="key=us-east-1/eks-vpc-nonprod/${ENVIRONMENT}/idm-service/terraform.tfstate" \
     -reconfigure
 
 # Execute action

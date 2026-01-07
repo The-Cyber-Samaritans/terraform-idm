@@ -64,17 +64,17 @@ output "deployment_info" {
 # Docker Push Command
 output "docker_push_commands" {
   description = "Commands to build and push Docker image to ECR"
-  value       = var.create_ecr_repository ? <<-EOT
-    # Login to ECR
-    aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${aws_ecr_repository.keycloak[0].repository_url}
-
-    # Build and tag image
-    docker build -t ${local.ecr_repository_name}:${var.image_tag} .
-    docker tag ${local.ecr_repository_name}:${var.image_tag} ${aws_ecr_repository.keycloak[0].repository_url}:${var.image_tag}
-
-    # Push to ECR
-    docker push ${aws_ecr_repository.keycloak[0].repository_url}:${var.image_tag}
-  EOT : ""
+  value = var.create_ecr_repository ? join("\n", [
+    "# Login to ECR",
+    "aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${aws_ecr_repository.keycloak[0].repository_url}",
+    "",
+    "# Build and tag image",
+    "docker build -t ${local.ecr_repository_name}:${var.image_tag} .",
+    "docker tag ${local.ecr_repository_name}:${var.image_tag} ${aws_ecr_repository.keycloak[0].repository_url}:${var.image_tag}",
+    "",
+    "# Push to ECR",
+    "docker push ${aws_ecr_repository.keycloak[0].repository_url}:${var.image_tag}"
+  ]) : "ECR repository not created"
 }
 
 # Kubectl Commands
@@ -95,17 +95,17 @@ output "kubectl_commands" {
   EOT
 }
 
-# GitHub Actions Outputs
-output "github_actions_role_arn" {
-  description = "ARN of the GitHub Actions IAM role"
-  value       = var.create_github_actions_role ? aws_iam_role.github_actions[0].arn : ""
-}
+# GitHub Actions Outputs (commented out - resource not defined)
+# output "github_actions_role_arn" {
+#   description = "ARN of the GitHub Actions IAM role"
+#   value       = var.create_github_actions_role ? aws_iam_role.github_actions[0].arn : ""
+# }
 
-output "github_actions_setup" {
-  description = "GitHub repository secrets to configure"
-  value       = var.create_github_actions_role ? <<-EOT
-    Add these secrets to your GitHub repository (Settings > Secrets and variables > Actions):
-
-    AWS_ROLE_ARN: ${aws_iam_role.github_actions[0].arn}
-  EOT : ""
-}
+# output "github_actions_setup" {
+#   description = "GitHub repository secrets to configure"
+#   value = var.create_github_actions_role ? join("\n", [
+#     "Add these secrets to your GitHub repository (Settings > Secrets and variables > Actions):",
+#     "",
+#     "AWS_ROLE_ARN: ${aws_iam_role.github_actions[0].arn}"
+#   ]) : "GitHub Actions role not created"
+# }

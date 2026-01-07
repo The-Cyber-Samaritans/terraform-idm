@@ -151,6 +151,12 @@ variable "alb_target_type" {
   default     = "ip"
 }
 
+variable "alb_group_name" {
+  description = "ALB group name for sharing ALB across multiple ingresses"
+  type        = string
+  default     = ""
+}
+
 variable "health_check_path" {
   description = "Health check path for the ALB"
   type        = string
@@ -250,37 +256,6 @@ variable "env_vars" {
   description = "Additional environment variables for the container"
   type        = map(string)
   default     = {}
-}
-
-# Autoscaling Configuration
-variable "enable_autoscaling" {
-  description = "Whether to enable Horizontal Pod Autoscaler"
-  type        = bool
-  default     = false
-}
-
-variable "min_replicas" {
-  description = "Minimum number of replicas for HPA"
-  type        = number
-  default     = 2
-}
-
-variable "max_replicas" {
-  description = "Maximum number of replicas for HPA"
-  type        = number
-  default     = 5
-}
-
-variable "cpu_target_utilization" {
-  description = "Target CPU utilization for autoscaling"
-  type        = number
-  default     = 70
-}
-
-variable "memory_target_utilization" {
-  description = "Target memory utilization for autoscaling"
-  type        = number
-  default     = 80
 }
 
 # GitHub Actions OIDC Configuration

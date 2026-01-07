@@ -10,6 +10,21 @@ resource "kubernetes_namespace" "keycloak" {
   }
 }
 
+# ConfigMap for .env file
+resource "kubernetes_config_map" "keycloak_env" {
+  metadata {
+    name      = "${local.name_prefix}-keycloak-env"
+    namespace = var.namespace
+    labels    = local.common_labels
+  }
+
+  data = {
+    ".env" = local.env_file_content
+  }
+
+  depends_on = [kubernetes_namespace.keycloak]
+}
+
 # Secret for database password
 resource "kubernetes_secret" "keycloak_db" {
   metadata {
@@ -19,7 +34,7 @@ resource "kubernetes_secret" "keycloak_db" {
   }
 
   data = {
-    password = var.db_password_secret_name != "" ? data.aws_secretsmanager_secret_version.db_password[0].secret_string : ""
+    password = var.db_password_secret_name != "" ? local.db_password : ""
   }
 
   type = "Opaque"
@@ -73,14 +88,97 @@ resource "kubernetes_deployment" "keycloak" {
       }
 
       spec {
+        # Init container to create .env file with secrets
+        init_container {
+          name  = "setup-env"
+          image = "busybox:latest"
+          
+          command = ["/bin/sh", "-c"]
+          args = [
+            <<-EOF
+            echo "Creating .env file with secrets..."
+            cp /tmp/env-template/.env /opt/keycloak/.env.tmp
+            
+            # Replace keycloak admin password placeholder
+            sed -i "s|KEYCLOAK_ADMIN_PASSWORD=<from-secret>|KEYCLOAK_ADMIN_PASSWORD=$KEYCLOAK_ADMIN_PASSWORD|g" /opt/keycloak/.env.tmp
+            
+            # Replace postgres password placeholder  
+            sed -i "s|POSTGRES_PASSWORD=<from-secret>|POSTGRES_PASSWORD=$POSTGRES_PASSWORD|g" /opt/keycloak/.env.tmp
+            
+            # Move to final location
+            mv /opt/keycloak/.env.tmp /opt/keycloak/.env
+            chmod 644 /opt/keycloak/.env
+            
+            echo ".env file created successfully"
+            echo "--- .env file content (passwords masked) ---"
+            cat /opt/keycloak/.env | sed 's/PASSWORD=.*/PASSWORD=***MASKED***/g'
+            EOF
+          ]
+          
+          env {
+            name = "KEYCLOAK_ADMIN_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.keycloak_admin.metadata[0].name
+                key  = "password"
+              }
+            }
+          }
+          
+          env {
+            name = "POSTGRES_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.keycloak_db.metadata[0].name
+                key  = "password"
+              }
+            }
+          }
+          
+          volume_mount {
+            name       = "env-template"
+            mount_path = "/tmp/env-template"
+            read_only  = true
+          }
+          
+          volume_mount {
+            name       = "env-file"
+            mount_path = "/opt/keycloak"
+          }
+        }
+
         container {
           name  = "keycloak"
           image = local.image_uri
+
+          # Command to source .env file before starting Keycloak
+          command = ["/bin/sh", "-c"]
+          args = [
+            <<-EOF
+            set -a
+            if [ -f /opt/keycloak/.env ]; then
+              echo "Loading and exporting environment variables from /opt/keycloak/.env"
+              source /opt/keycloak/.env
+            else
+              echo "Warning: /opt/keycloak/.env not found"
+            fi
+            set +a
+            
+            echo "Starting Keycloak..."
+            exec /opt/keycloak/bin/kc.sh start
+            EOF
+          ]
 
           port {
             name           = "http"
             container_port = var.container_port
             protocol       = "TCP"
+          }
+
+          # Environment variable to point to .env file location
+          env {
+            name  = "ENV_FILE"
+            value = "/opt/keycloak/.env"
           }
 
           dynamic "env" {
@@ -152,9 +250,31 @@ resource "kubernetes_deployment" "keycloak" {
             run_as_user               = 1000
             allow_privilege_escalation = false
           }
+
+          # Mount .env file from shared volume
+          volume_mount {
+            name       = "env-file"
+            mount_path = "/opt/keycloak/.env"
+            sub_path   = ".env"
+            read_only  = true
+          }
         }
 
         restart_policy = "Always"
+
+        # Volume for .env template from ConfigMap
+        volume {
+          name = "env-template"
+          config_map {
+            name = kubernetes_config_map.keycloak_env.metadata[0].name
+          }
+        }
+
+        # Shared volume for processed .env file
+        volume {
+          name = "env-file"
+          empty_dir {}
+        }
 
         security_context {
           fs_group = 1000
@@ -210,21 +330,24 @@ resource "kubernetes_ingress_v1" "keycloak" {
     namespace = var.namespace
     labels    = local.common_labels
 
-    annotations = {
-      "kubernetes.io/ingress.class"                    = var.ingress_class
-      "alb.ingress.kubernetes.io/scheme"               = var.alb_scheme
-      "alb.ingress.kubernetes.io/target-type"          = var.alb_target_type
-      "alb.ingress.kubernetes.io/subnets"              = local.subnet_ids_string
-      "alb.ingress.kubernetes.io/certificate-arn"      = local.certificate_arn
-      "alb.ingress.kubernetes.io/listen-ports"         = "[{\"HTTP\": 80}, {\"HTTPS\": 443}]"
-      "alb.ingress.kubernetes.io/ssl-redirect"         = "443"
-      "alb.ingress.kubernetes.io/healthcheck-path"     = var.health_check_path
-      "alb.ingress.kubernetes.io/healthcheck-protocol" = "HTTP"
-      "alb.ingress.kubernetes.io/success-codes"        = "200"
-      "alb.ingress.kubernetes.io/tags"                 = "Environment=${var.environment},Application=${var.app_name},Component=idm"
-      # Sticky sessions for Keycloak clustering
+    annotations = merge({
+      "kubernetes.io/ingress.class"                       = var.ingress_class
+      "alb.ingress.kubernetes.io/scheme"                  = var.alb_scheme
+      "alb.ingress.kubernetes.io/target-type"             = var.alb_target_type
+      "alb.ingress.kubernetes.io/subnets"                 = local.subnet_ids_string
+      "alb.ingress.kubernetes.io/certificate-arn"         = local.certificate_arn
+      "alb.ingress.kubernetes.io/listen-ports"            = "[{\"HTTP\": 80}, {\"HTTPS\": 443}]"
+      "alb.ingress.kubernetes.io/ssl-redirect"            = "443"
+      "alb.ingress.kubernetes.io/healthcheck-path"        = var.health_check_path
+      "alb.ingress.kubernetes.io/healthcheck-protocol"    = "HTTP"
+      "alb.ingress.kubernetes.io/success-codes"           = "200"
+      "alb.ingress.kubernetes.io/tags"                    = "Environment=nonprod,Application=${var.app_name},Component=idm"
       "alb.ingress.kubernetes.io/target-group-attributes" = "stickiness.enabled=true,stickiness.lb_cookie.duration_seconds=86400"
-    }
+      },
+      var.alb_group_name != "" ? {
+        "alb.ingress.kubernetes.io/group.name" = var.alb_group_name
+      } : {}
+    )
   }
 
   spec {
@@ -259,50 +382,4 @@ resource "kubernetes_ingress_v1" "keycloak" {
   }
 
   depends_on = [kubernetes_service.keycloak]
-}
-
-# Horizontal Pod Autoscaler (optional)
-resource "kubernetes_horizontal_pod_autoscaler_v2" "keycloak" {
-  count = var.enable_autoscaling ? 1 : 0
-
-  metadata {
-    name      = "${local.name_prefix}-keycloak"
-    namespace = var.namespace
-    labels    = local.common_labels
-  }
-
-  spec {
-    scale_target_ref {
-      api_version = "apps/v1"
-      kind        = "Deployment"
-      name        = kubernetes_deployment.keycloak.metadata[0].name
-    }
-
-    min_replicas = var.min_replicas
-    max_replicas = var.max_replicas
-
-    metric {
-      type = "Resource"
-      resource {
-        name = "cpu"
-        target {
-          type                = "Utilization"
-          average_utilization = var.cpu_target_utilization
-        }
-      }
-    }
-
-    metric {
-      type = "Resource"
-      resource {
-        name = "memory"
-        target {
-          type                = "Utilization"
-          average_utilization = var.memory_target_utilization
-        }
-      }
-    }
-  }
-
-  depends_on = [kubernetes_deployment.keycloak]
 }
