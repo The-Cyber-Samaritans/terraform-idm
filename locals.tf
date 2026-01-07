@@ -47,6 +47,7 @@ locals {
       KC_DB_USERNAME       = var.db_username
       KC_HOSTNAME          = var.domain_name
       KC_HOSTNAME_STRICT   = "false"
+      KC_HOSTNAME_STRICT_HTTPS = "true"
       KC_HTTP_ENABLED      = "true"
       KC_HEALTH_ENABLED    = "true"
       KC_METRICS_ENABLED   = "true"

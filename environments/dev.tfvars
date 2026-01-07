@@ -34,7 +34,7 @@ memory_limit   = "2Gi"
 # Ingress Configuration
 create_ingress    = true
 ingress_class     = "alb"
-domain_name       = "auth.dev.cloud.onceamerican.com"
+domain_name       = "auth-dev-cloud.onceamerican.com"
 certificate_arn   = "arn:aws:acm:us-east-1:553022076960:certificate/45908302-6092-4eda-b3bd-c15054b7188b"
 alb_scheme        = "internal"
 alb_target_type   = "ip"
@@ -43,7 +43,7 @@ health_check_path = "/health/ready"
 
 # DNS Configuration
 create_dns_records = false
-hosted_zone_name   = "cloud.onceamerican.com"
+hosted_zone_name   = "onceamerican.com"
 use_private_zone   = true
 
 # Database Configuration
