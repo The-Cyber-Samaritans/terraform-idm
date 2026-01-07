@@ -34,12 +34,20 @@ memory_limit   = "2Gi"
 # Ingress Configuration
 create_ingress    = true
 ingress_class     = "alb"
+# Internal domain for ALB ingress routing (via Cloudflare tunnel)
 domain_name       = "auth.dev.cloud.onceamerican.com"
 certificate_arn   = "arn:aws:acm:us-east-1:553022076960:certificate/45908302-6092-4eda-b3bd-c15054b7188b"
 alb_scheme        = "internal"
 alb_target_type   = "ip"
 alb_group_name    = "multi-env-alb"
 health_check_path = "/health/ready"
+
+# Multi-URL Configuration
+# Public URL that users access in browser (via Cloudflare proxy)
+kc_hostname_url       = "https://auth.dev.intelfoundry.io"
+kc_hostname_admin_url = "https://auth.dev.intelfoundry.io"
+# Enable dynamic backchannel for internal service-to-service communication
+kc_hostname_backchannel_dynamic = true
 
 # DNS Configuration
 create_dns_records = false

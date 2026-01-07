@@ -4,7 +4,9 @@
 data "aws_lb" "ingress" {
   count = var.create_ingress && var.create_dns_records ? 1 : 0
 
-  name = regex("^([^-]+(?:-[^-]+){2,3})", kubernetes_ingress_v1.keycloak[0].status[0].load_balancer[0].ingress[0].hostname)[0]
+  # Extract ALB name from hostname. Format: internal-k8s-xxx-yyy-nnn.region.elb.amazonaws.com
+  # The ALB name is everything between the optional "internal-" prefix and the number suffix
+  name = regex("^(?:internal-)?([^.]+)-\\d+\\.", kubernetes_ingress_v1.keycloak[0].status[0].load_balancer[0].ingress[0].hostname)[0]
 
   depends_on = [kubernetes_ingress_v1.keycloak]
 }

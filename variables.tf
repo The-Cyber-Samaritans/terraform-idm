@@ -251,6 +251,25 @@ variable "keycloak_features" {
   default     = "token-exchange,admin-fine-grained-authz"
 }
 
+# Multi-URL Configuration (public vs internal)
+variable "kc_hostname_url" {
+  description = "Public URL for Keycloak (browser-facing). If empty, uses domain_name"
+  type        = string
+  default     = ""
+}
+
+variable "kc_hostname_admin_url" {
+  description = "Public URL for Keycloak admin console. If empty, uses kc_hostname_url"
+  type        = string
+  default     = ""
+}
+
+variable "kc_hostname_backchannel_dynamic" {
+  description = "Enable dynamic backchannel hostname for internal service-to-service communication"
+  type        = bool
+  default     = true
+}
+
 # Environment Variables
 variable "env_vars" {
   description = "Additional environment variables for the container"

@@ -23,6 +23,12 @@ locals {
   # Database URL
   db_url = "jdbc:postgresql://${local.db_host}:${var.db_port}/${var.db_name}"
 
+  # Multi-URL support: Public URLs for browser, internal for backend
+  # KC_HOSTNAME_URL: Public URL users see in browser (e.g., https://auth.dev.intelfoundry.io)
+  # KC_HOSTNAME: Internal domain for ingress routing (e.g., auth.dev.cloud.intelfoundry.net)
+  kc_hostname_url       = var.kc_hostname_url != "" ? var.kc_hostname_url : "https://${var.domain_name}"
+  kc_hostname_admin_url = var.kc_hostname_admin_url != "" ? var.kc_hostname_admin_url : local.kc_hostname_url
+
   # Read .env template file and prepare for substitution
   env_template = file("${path.module}/.env.tmpl")
   
@@ -42,17 +48,25 @@ locals {
   # Environment variables for container (Keycloak standard env vars)
   container_env_vars = merge(
     {
-      KC_DB                = "postgres"
-      KC_DB_URL            = local.db_url
-      KC_DB_USERNAME       = var.db_username
-      KC_HOSTNAME          = var.domain_name
-      KC_HOSTNAME_STRICT   = "false"
-      KC_HTTP_ENABLED      = "true"
-      KC_HEALTH_ENABLED    = "true"
-      KC_METRICS_ENABLED   = "true"
-      KC_PROXY             = "edge"
-      KC_FEATURES          = var.keycloak_features
-      KEYCLOAK_ADMIN       = var.keycloak_admin_username
+      KC_DB                    = "postgres"
+      KC_DB_URL                = local.db_url
+      KC_DB_USERNAME           = var.db_username
+      KC_HOSTNAME              = var.domain_name
+      KC_HOSTNAME_STRICT       = "false"
+      KC_HOSTNAME_STRICT_HTTPS = "false"
+      KC_HTTP_ENABLED          = "true"
+      KC_HEALTH_ENABLED        = "true"
+      KC_METRICS_ENABLED       = "true"
+      KC_PROXY                 = "edge"
+      KC_FEATURES              = var.keycloak_features
+      KEYCLOAK_ADMIN           = var.keycloak_admin_username
+      # Multi-URL support: Set public URLs for browser redirects
+      # Internal: auth.dev.cloud.onceamerican.com or auth.dev.cloud.intelfoundry.net
+      # Public: auth.dev.intelfoundry.io (via Cloudflare proxy)
+      KC_HOSTNAME_URL                 = local.kc_hostname_url
+      KC_HOSTNAME_ADMIN_URL           = local.kc_hostname_admin_url
+      # Enable dynamic backchannel for internal service-to-service communication
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC = tostring(var.kc_hostname_backchannel_dynamic)
     },
     var.env_vars
   )
